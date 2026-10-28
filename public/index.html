@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniPrice — Real-Time Multi-Store Price Intelligence</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      letter-spacing: -0.018em;
+    }
+    .font-sans, .font-sans * {
+      font-family: 'Geist Mono', monospace !important;
+    }
+    body {
+      background-color: #FFFFFF;
+      color: #000000;
+      overflow-x: hidden;
+    }
+    /* Interactive Monochrome Canvas */
+    #ambientCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+    }
+    /* Monochrome Glass Cards */
+    .mono-card {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid #E5E5E5;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .mono-card:hover {
+      border-color: #000000;
+      box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.08);
+    }
+    .mono-subcard {
+      background: #FAFAFA;
+      border: 1px solid #E5E5E5;
+    }
+    /* Card Entrance Animation */
+    .card-enter {
+      animation: card-appear 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes card-appear {
+      from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    /* Store Logo Filter */
+    .store-logo-filter {
+      filter: grayscale(100%) opacity(60%);
+      transition: all 0.2s ease;
+    }
+    .store-logo-filter:hover {
+      filter: grayscale(0%) opacity(100%);
+      transform: translateY(-2px);
+    }
+    /* Modal Animation */
+    .modal-enter {
+      animation: modal-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes modal-pop {
+      from { opacity: 0; transform: scale(0.96) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-black selection:text-white relative">
+
+  <!-- Interactive Monochrome Background Canvas -->
+  <canvas id="ambientCanvas"></canvas>
+
+  <!-- Main Shell -->
+  <div class="relative z-10 flex-1 flex flex-col">
+
+    <!-- Top Announcement Strip -->
+    <div id="topBanner" class="border-b border-neutral-200 bg-neutral-950 text-white text-[11px] py-2 px-4 flex items-center justify-between font-sans transition-all duration-300">
+      <div class="hidden sm:flex items-center gap-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+        <span class="text-[10px] uppercase tracking-wider text-neutral-400">Fastify Engine • Sub-1ms LRU Cache</span>
+      </div>
+      <div class="text-center flex-1 text-neutral-200 font-medium text-xs">
+        <span>OmniPrice v2.5 • Unified Multi-Store Price Intelligence Across Verified Retailers</span>
+      </div>
+      <button id="dismissBannerBtn" class="text-[10px] text-neutral-400 hover:text-white cursor-pointer px-1 py-0.5 rounded transition-colors" title="Dismiss announcement">
+        [DISMISS]
+      </button>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="border-b border-neutral-200 bg-white/90 backdrop-blur-md sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        
+        <!-- Logo -->
+        <div id="brandLogoBtn" class="flex items-center space-x-2.5 cursor-pointer group" title="OmniPrice Home">
+          <div class="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M4 6h16M4 12h10M4 18h16"/>
+            </svg>
+          </div>
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-base font-bold text-black tracking-tight">OmniPrice</span>
+            <span class="text-[10px] font-sans font-semibold text-neutral-500 bg-neutral-100 px-1.5 py-0.2 rounded border border-neutral-200">v2.5</span>
+          </div>
+        </div>
+
+        <!-- Center Links -->
+        <nav class="hidden md:flex items-center space-x-6 text-xs font-medium text-neutral-600">
+          <button id="navSearchLink" class="hover:text-black transition-colors">Search Engine</button>
+          
+          <button id="statsBtn" class="hover:text-black transition-colors flex items-center gap-1.5">
+            <span>Telemetry</span>
+          </button>
+          <a href="https://rapidapi.com/letscrape-6bRBa33mO/api/real-time-product-search" target="_blank" rel="noopener noreferrer" class="hover:text-black transition-colors flex items-center gap-1">
+            <span>API Docs</span>
+            <i data-lucide="arrow-up-right" class="w-3 h-3 text-neutral-400"></i>
+          </a>
+        </nav>
+        
+        <!-- Right Auth Controls -->
+        <div class="flex items-center space-x-3">
+          <!-- Unauthenticated View -->
+          <div id="unauthNav" class="flex items-center space-x-2">
+            <button id="openLoginBtn" class="text-xs font-semibold text-neutral-700 hover:text-black px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-neutral-200">
+              Sign In
+            </button>
+            <button id="openRegisterBtn" class="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
+              Get Started Free
+            </button>
+          </div>
+
+          <!-- Authenticated View -->
+          <div id="authNav" class="hidden flex items-center space-x-3">
+            <div id="quotaPill" class="hidden sm:flex items-center gap-1.5 text-xs font-sans px-2.5 py-1 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-800 shadow-sm" title="Your daily search quota">
+              <span class="w-1.5 h-1.5 rounded-full bg-black"></span>
+              <span id="quotaText">3/3 left</span>
+            </div>
+
+            <span id="userTierBadge" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border tracking-wider bg-white border-neutral-300 text-black font-sans">
+              FREE
+            </span>
+
+            <div class="flex items-center space-x-2 pl-2 border-l border-neutral-200">
+              <span id="navUserName" class="text-xs font-semibold text-neutral-800 hidden md:inline">User</span>
+              <button id="logoutBtn" title="Log Out" class="text-neutral-400 hover:text-black p-1.5 rounded-lg hover:bg-neutral-100 transition-colors">
+                <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-20 w-full" id="searchSection">
+      
+      <!-- HERO HEADER -->
+      <div class="text-center max-w-3xl mx-auto mb-10">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-neutral-100 border border-neutral-300 text-neutral-900 text-xs font-semibold mb-6 shadow-sm">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-black"></i>
+          <span>Multi-Store Search Across Verified Retailers</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-black leading-[1.08] mb-4">
+          Search every store in <span class="underline decoration-neutral-300 underline-offset-8">one call</span>.
+        </h1>
+        <p class="text-neutral-600 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto font-normal">
+          Federate live product availability, offers, and price drops across Amazon, Apple, Best Buy, Target, and Walmart in sub-millisecond queries.
+        </p>
+      </div>
+
+      <!-- SEARCH INPUT CARD -->
+      <div class="mono-card rounded-2xl p-4 sm:p-6 mb-8 max-w-3xl mx-auto">
+        <form id="searchForm" class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 text-neutral-400 absolute left-4 top-1/2 -translate-y-1/2"></i>
+            <input 
+              type="text" 
+              id="searchInput"
+              placeholder="Search products (e.g., MacBook Air M2, Sony WH-1000XM5, Nintendo Switch)..."
+              class="w-full bg-neutral-50 border border-neutral-300 focus:bg-white focus:border-black focus:ring-2 focus:ring-black/10 text-black rounded-xl pl-11 pr-4 py-3.5 text-sm sm:text-base outline-none transition-all placeholder:text-neutral-400 font-medium"
+              required
+              autofocus
+            />
+          </div>
+          <button 
+            type="submit" 
+            id="searchBtn"
+            class="bg-black hover:bg-neutral-800 text-white text-xs sm:text-sm font-semibold px-7 py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+          >
+            <span>Compare</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+        </form>
+
+        <!-- Filters Toolbar -->
+        <div class="mt-4 pt-3.5 border-t border-neutral-200 flex flex-wrap items-center justify-between gap-3 text-xs text-neutral-600">
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="trustedOnlyToggle" class="sr-only peer" checked>
+              <div class="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-black"></div>
+              <span class="text-xs font-semibold text-black flex items-center gap-1.5">
+                <i data-lucide="badge-check" class="w-3.5 h-3.5 text-black"></i>
+                Verified Stores Only
+              </span>
+            </label>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-neutral-500 font-medium text-xs">Sort:</span>
+            <select id="sortSelect" class="bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-xs text-black outline-none focus:border-black font-medium shadow-sm cursor-pointer">
+              <option value="price_asc">Lowest Price First</option>
+              <option value="price_desc">Highest Price First</option>
+              <option value="rating_desc">Highest Customer Rating</option>
+              <option value="discount_desc">Biggest Savings</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Suggestion Pills -->
+      <div class="flex flex-wrap items-center justify-center gap-2 text-xs text-neutral-500 mb-8">
+        <span class="text-neutral-500 font-medium mr-1 font-sans text-[11px]">Trending:</span>
+        <button class="pill-btn px-3.5 py-1.5 rounded-full bg-white border border-neutral-300 hover:border-black text-neutral-800 shadow-sm transition-all hover:scale-105 active:scale-95 font-medium cursor-pointer">MacBook Air M2</button>
+        <button class="pill-btn px-3.5 py-1.5 rounded-full bg-white border border-neutral-300 hover:border-black text-neutral-800 shadow-sm transition-all hover:scale-105 active:scale-95 font-medium cursor-pointer">Sony WH-1000XM5</button>
+        <button class="pill-btn px-3.5 py-1.5 rounded-full bg-white border border-neutral-300 hover:border-black text-neutral-800 shadow-sm transition-all hover:scale-105 active:scale-95 font-medium cursor-pointer">Nintendo Switch OLED</button>
+        <button class="pill-btn px-3.5 py-1.5 rounded-full bg-white border border-neutral-300 hover:border-black text-neutral-800 shadow-sm transition-all hover:scale-105 active:scale-95 font-medium cursor-pointer">AirPods Pro 2</button>
+        <button class="pill-btn px-3.5 py-1.5 rounded-full bg-white border border-neutral-300 hover:border-black text-neutral-800 shadow-sm transition-all hover:scale-105 active:scale-95 font-medium cursor-pointer">PlayStation 5 Slim</button>
+      </div>
+
+      <!-- Real Verified Retailers Bar -->
+
+      <!-- Live Performance Stats Bar in Geist Mono -->
+      <div id="perfBar" class="max-w-5xl mx-auto mb-6 hidden">
+        <div class="mono-card rounded-xl px-4 py-3 flex flex-wrap items-center justify-between text-xs text-neutral-800 font-sans">
+          <div class="flex items-center gap-3">
+            <span id="timingBadge" class="flex items-center gap-1.5 font-bold text-black">
+              <i data-lucide="zap" class="w-3.5 h-3.5 text-black"></i>
+              <span id="timingText">32ms</span>
+            </span>
+            <span class="text-neutral-300">|</span>
+            <span id="cacheBadge" class="px-2 py-0.5 text-[10px] font-semibold uppercase bg-neutral-100 text-black rounded border border-neutral-300">
+              CACHE HIT
+            </span>
+          </div>
+          <div class="flex items-center gap-2 text-neutral-500 font-sans text-xs">
+            <span id="countText">Showing offers</span>
+            <span class="text-neutral-300">•</span>
+            <span id="storesText">across verified stores</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Best Deal Callout Banner -->
+      <div id="bestDealBanner" class="max-w-5xl mx-auto mb-8 hidden">
+        <div class="bg-white border-2 border-black rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-black text-white flex items-center justify-center shrink-0">
+              <i data-lucide="award" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase font-bold tracking-wider text-neutral-600 mb-1 flex items-center gap-2 font-sans">
+                <span>Curated Best Deal</span>
+                <span id="savingsBadge" class="bg-black text-white px-2 py-0.5 rounded text-[10px] font-medium">Save $120</span>
+              </div>
+              <div class="text-2xl sm:text-3xl font-extrabold text-black">
+                Lowest Price: <span id="lowestPriceText" class="text-black underline">$0.00</span>
+                <span class="font-normal text-sm text-neutral-600 ml-2">at <span id="bestDealStoreText" class="text-black font-bold">Store</span></span>
+              </div>
+              <div class="text-xs text-neutral-500 mt-1 font-sans">
+                Highest price seen: <span id="highestPriceText" class="text-neutral-800">$0.00</span> • Market Average: <span id="avgPriceText" class="text-neutral-800">$0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <a id="bestDealLink" href="#" target="_blank" rel="noopener noreferrer" class="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shrink-0 shadow-sm hover:scale-105 active:scale-95">
+            <span>View Deal</span>
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Results Grid Section -->
+      <div class="w-full">
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden py-16 text-center">
+          <div class="inline-block animate-spin rounded-full h-9 w-9 border-2 border-black border-t-transparent mb-3"></div>
+          <p class="font-semibold text-black text-sm">Querying verified store inventories in parallel...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="py-16 text-center">
+          <div class="w-14 h-14 rounded-2xl bg-neutral-100 border border-neutral-200 flex items-center justify-center mx-auto mb-3 text-neutral-600 shadow-sm">
+            <i data-lucide="search" class="w-6 h-6 text-black"></i>
+          </div>
+          <h3 class="text-base font-bold text-black mb-1">Awaiting Product Query</h3>
+          <p class="text-xs text-neutral-500 max-w-sm mx-auto">Type any product name or click a trending tag above to instantly compare verified retail prices.</p>
+        </div>
+
+        <!-- Product Cards Grid -->
+        <div id="productGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-neutral-200 bg-white py-8 px-4 text-center text-xs text-neutral-500 font-sans">
+      <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <span>© OmniPrice Engine • OpenWeb Ninja Multi-Store Aggregator</span>
+        <div class="flex items-center gap-4 text-neutral-600">
+          <button onclick="window.scrollTo({top:0, behavior:'smooth'})" class="hover:text-black transition-colors flex items-center gap-1">
+            <span>Back to top</span>
+            <i data-lucide="arrow-up" class="w-3 h-3"></i>
+          </button>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. SIGN IN MODAL -->
+  <div id="loginModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="modal-enter bg-white border border-neutral-300 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative">
+      <button class="modal-close-btn absolute top-5 right-5 text-neutral-400 hover:text-black" title="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="text-center mb-6">
+        <div class="w-11 h-11 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
+          <i data-lucide="log-in" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-xl font-bold text-black">Welcome Back</h3>
+        <p class="text-xs text-neutral-500 mt-1">Sign in to access your quota, saved searches, and active plan</p>
+      </div>
+
+      <div id="loginError" class="hidden p-3 rounded-xl bg-neutral-100 border border-neutral-300 text-black text-xs mb-4 font-medium"></div>
+
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-neutral-700 mb-1">Email Address</label>
+          <input type="email" id="loginEmail" required placeholder="you@example.com" class="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3.5 py-2.5 text-xs text-black outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-neutral-700 mb-1">Password</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3.5 py-2.5 text-xs text-black outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black">
+        </div>
+        <button type="submit" id="loginSubmitBtn" class="w-full bg-black hover:bg-neutral-800 text-white text-xs font-semibold py-3 rounded-xl transition-all shadow-sm">
+          Sign In
+        </button>
+      </form>
+
+      <div class="mt-6 text-center text-xs text-neutral-500 border-t border-neutral-200 pt-4">
+        New to OmniPrice? <button id="switchToRegister" class="text-black font-semibold underline ml-1 hover:text-neutral-700">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. SIGN UP MODAL -->
+  <div id="registerModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="modal-enter bg-white border border-neutral-300 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative">
+      <button class="modal-close-btn absolute top-5 right-5 text-neutral-400 hover:text-black" title="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="text-center mb-6">
+        <div class="w-11 h-11 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
+          <i data-lucide="user-plus" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-xl font-bold text-black">Create Account</h3>
+        <p class="text-xs text-neutral-500 mt-1">Start comparing prices with 3 free real-time searches daily</p>
+      </div>
+
+      <div id="registerError" class="hidden p-3 rounded-xl bg-neutral-100 border border-neutral-300 text-black text-xs mb-4 font-medium"></div>
+
+      <form id="registerForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-neutral-700 mb-1">Full Name</label>
+          <input type="text" id="regName" required placeholder="John Doe" class="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3.5 py-2.5 text-xs text-black outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-neutral-700 mb-1">Email Address</label>
+          <input type="email" id="regEmail" required placeholder="you@example.com" class="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3.5 py-2.5 text-xs text-black outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-neutral-700 mb-1">Password (Min. 6 characters)</label>
+          <input type="password" id="regPassword" minlength="6" required placeholder="••••••••" class="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3.5 py-2.5 text-xs text-black outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black">
+        </div>
+        <button type="submit" id="regSubmitBtn" class="w-full bg-black hover:bg-neutral-800 text-white text-xs font-semibold py-3 rounded-xl transition-all shadow-sm">
+          Create Free Account
+        </button>
+      </form>
+
+      <div class="mt-6 text-center text-xs text-neutral-500 border-t border-neutral-200 pt-4">
+        Already registered? <button id="switchToLogin" class="text-black font-semibold underline ml-1 hover:text-neutral-700">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUOTA EXCEEDED MODAL -->
+  <div id="quotaModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="modal-enter bg-white border-2 border-black rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative text-center">
+      <div class="w-12 h-12 rounded-2xl bg-neutral-100 border border-neutral-300 flex items-center justify-center mx-auto mb-3 text-black">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <h3 class="text-xl font-bold text-black mb-1">Daily Limit Reached</h3>
+      <p class="text-xs text-neutral-600 mb-5 leading-relaxed">
+        You've used your 3 free searches for today. Come back tomorrow to search again!
+      </p>
+      <button class="modal-close-btn w-full bg-black hover:bg-neutral-800 text-white text-xs font-semibold py-3 rounded-xl transition-all shadow-sm">
+        Got it
+      </button>
+    </div>
+  </div>
+
+  <!-- 5. BACKEND METRICS MODAL -->
+  <div id="statsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="modal-enter bg-white border border-neutral-300 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
+      <button class="modal-close-btn absolute top-5 right-5 text-neutral-400 hover:text-black" title="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center gap-3 mb-4 pb-3 border-b border-neutral-200">
+        <div class="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center">
+          <i data-lucide="cpu" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-black">Engine Telemetry</h3>
+          <p class="text-[11px] text-neutral-500 font-sans">Fastify & SQLite WAL performance</p>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 font-sans" id="statsContent">
+        <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex justify-between items-center text-xs">
+          <span class="text-neutral-600 font-sans">Cache Hit Ratio</span>
+          <span id="metricHitRatio" class="font-bold text-black text-sm">--%</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs">
+            <span class="text-[10px] text-neutral-500 block mb-0.5 font-sans">Cache Hits</span>
+            <span id="metricHits" class="font-bold text-black text-base">0</span>
+          </div>
+          <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs">
+            <span class="text-[10px] text-neutral-500 block mb-0.5 font-sans">Cache Misses</span>
+            <span id="metricMisses" class="font-bold text-black text-base">0</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs">
+            <span class="text-[10px] text-neutral-500 block mb-0.5 font-sans">Registered Users</span>
+            <span id="metricUsers" class="font-bold text-black text-base">0</span>
+          </div>
+          <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs">
+            <span class="text-[10px] text-neutral-500 block mb-0.5 font-sans">Paid Subscribers</span>
+            <span id="metricPaidSubs" class="font-bold text-black text-base">0</span>
+          </div>
+        </div>
+        <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex justify-between items-center text-xs">
+          <span class="text-neutral-600 font-sans">Active Keys In Memory</span>
+          <span id="metricKeys" class="font-bold text-black">0</span>
+        </div>
+        <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex justify-between items-center text-xs">
+          <span class="text-neutral-600 font-sans">Server Uptime</span>
+          <span id="metricUptime" class="font-bold text-black">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
+
+
+
+
